@@ -19,7 +19,7 @@ var pingPeriod = 30 * time.Second
 
 type Manager struct {
 	Clients    map[string]*Client          // 以用户ID为键的客户端映射
-	Groups     map[string]map[*Client]bool // 群组映射
+	Rooms      map[string]map[*Client]bool // 群组映射
 	Broadcast  chan Message
 	Register   chan *Client
 	Unregister chan *Client
@@ -29,7 +29,7 @@ type Manager struct {
 
 var manager = Manager{
 	Clients:    make(map[string]*Client),
-	Groups:     make(map[string]map[*Client]bool),
+	Rooms:      make(map[string]map[*Client]bool),
 	Broadcast:  make(chan Message),
 	Register:   make(chan *Client),
 	Unregister: make(chan *Client),
@@ -49,14 +49,7 @@ func (m *Manager) Start() {
 				delete(m.Clients, client.UserID)
 				close(client.Send)
 			}
-			for groupID := range client.Groups {
-				if _, ok := m.Groups[groupID]; ok {
-					delete(m.Groups[groupID], client)
-					if len(m.Groups[groupID]) == 0 {
-						delete(m.Groups, groupID)
-					}
-				}
-			}
+
 			m.mu.Unlock()
 		case userID := <-m.Close: // 处理主动关闭连接
 			m.mu.Lock()
@@ -85,7 +78,7 @@ func (m *Manager) Start() {
 					client.Send <- message
 				}
 			case "group":
-				if clients, ok := m.Groups[message.GroupID]; ok {
+				if clients, ok := m.Rooms[message.Room]; ok {
 					for client := range clients {
 						client.Send <- message
 					}
@@ -114,32 +107,30 @@ func CloseClient(userID string) {
 	manager.Close <- userID
 }
 
-func JoinGroup(userID, groupID string) {
+func JoinGroup(userID, roomID string) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	client, ok := manager.Clients[userID]
 	if !ok {
 		return
 	}
-	if _, ok := manager.Groups[groupID]; !ok {
-		manager.Groups[groupID] = make(map[*Client]bool)
+	if _, ok := manager.Rooms[roomID]; !ok {
+		manager.Rooms[roomID] = make(map[*Client]bool)
 	}
-	manager.Groups[groupID][client] = true
-	client.Groups[groupID] = true
+	manager.Rooms[roomID][client] = true
 }
 
-func LeaveGroup(userID, groupID string) {
+func LeaveGroup(userID, roomID string) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	client, ok := manager.Clients[userID]
 	if !ok {
 		return
 	}
-	if _, ok := manager.Groups[groupID]; ok {
-		delete(manager.Groups[groupID], client)
-		if len(manager.Groups[groupID]) == 0 {
-			delete(manager.Groups, groupID)
+	if _, ok := manager.Rooms[roomID]; ok {
+		delete(manager.Rooms[roomID], client)
+		if len(manager.Rooms[roomID]) == 0 {
+			delete(manager.Rooms, roomID)
 		}
 	}
-	delete(client.Groups, groupID)
 }

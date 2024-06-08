@@ -13,7 +13,7 @@ type Client struct {
 	Conn   *websocket.Conn
 	UserID string
 	Send   chan Message
-	Groups map[string]bool // 加入的群组
+	Room   *Room // 加入的群组
 
 	Role     string // 用户角色?
 	Avatar   string // 用户头像?
@@ -54,7 +54,7 @@ func InitializeClient(userID string, ws *websocket.Conn) *Client {
 		Conn:   ws,
 		UserID: userID,
 		Send:   make(chan Message),
-		Groups: make(map[string]bool),
+		Room:   nil,
 	}
 	manager.Register <- client
 	go client.ReadPump()
@@ -116,6 +116,38 @@ func (c *Client) WritePump() {
 			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
+		}
+	}
+}
+
+func (client *Client) ReadMessages() {
+	defer func() {
+		client.Room.Unregister <- client
+		client.Conn.Close()
+	}()
+	for {
+		var msg Message
+		err := client.Conn.ReadJSON(&msg)
+		if err != nil {
+			break
+		}
+		client.Room.Broadcast <- msg
+	}
+}
+
+func (client *Client) WriteMessages() {
+	defer func() {
+		client.Conn.Close()
+	}()
+
+	for {
+		select {
+		case msg, ok := <-client.Send:
+			if !ok {
+				client.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+			client.Conn.WriteJSON(msg)
 		}
 	}
 }

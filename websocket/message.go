@@ -8,8 +8,10 @@ type Message struct {
 	Content    string `json:"content"`               // 消息内容
 	SenderID   string `json:"sender_id"`             // 发送者ID
 	ReceiverID string `json:"receiver_id,omitempty"` // 接收者ID（私信）
-	GroupID    string `json:"group_id,omitempty"`    // 群组ID（群聊）
+	Room       string `json:"room,omitempty"`        // 群组ID（群聊）
 	MessageID  string `json:"message_id,omitempty"`  // 消息ID（用于通知）
+	URL        string `json:"url,omitempty"`
+	FileType   string `json:"file_type,omitempty"`
 }
 
 func markAsRead(userID, messageID string) {

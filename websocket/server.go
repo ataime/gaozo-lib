@@ -13,6 +13,7 @@ type WebSocketServer struct {
 	Broadcast  chan Message
 	Register   chan *websocket.Conn
 	Unregister chan *websocket.Conn
+	Rooms      map[string]*Room
 }
 
 func NewWebSocketServer() *WebSocketServer {
@@ -65,4 +66,14 @@ func (server *WebSocketServer) HandleConnections(w http.ResponseWriter, r *http.
 		}
 		server.Broadcast <- msg
 	}
+}
+
+func (server *WebSocketServer) GetRoom(name string) *Room {
+	room, exists := server.Rooms[name]
+	if !exists {
+		room = NewRoom(name)
+		server.Rooms[name] = room
+		go room.RunRoom()
+	}
+	return room
 }
